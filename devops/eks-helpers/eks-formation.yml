@@ -1,0 +1,208 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Lean CloudFormation for the EKS used during Sec Jam.
+
+Parameters:
+
+  VPC:
+    Description: Parent stack VPC
+    Type: 'AWS::EC2::VPC::Id'
+
+  PublicSubnet1:
+    Description: 'PublicSubnet1'
+    Type: 'AWS::EC2::Subnet::Id'
+
+  PublicSubnet2:
+    Description: 'PublicSubnet2'
+    Type: 'AWS::EC2::Subnet::Id'
+
+  TeamName:
+    Description: The Team's name. It is going to be used as subdomain to the hosted zone name.
+    Type: String
+
+  EventName:
+    Description: DNS compliant event name. Will be used in dns names
+    Type: String
+    AllowedPattern: '[a-z0-9]*'
+
+  KeyName:
+    Description: The EC2 Key Pair to allow SSH access to the instances
+    Type: AWS::EC2::KeyPair::KeyName
+
+  NodeInstanceType:
+    Description: EC2 instance type for the node instances
+    Type: String
+    Default: t2.medium
+    AllowedValues:
+    - t2.small
+    - t2.medium
+    - t2.large
+    - t2.xlarge
+    - t2.2xlarge
+    - t3.nano
+    - t3.micro
+    - t3.small
+    - t3.medium
+    - t3.large
+    - t3.xlarge
+    - t3.2xlarge
+    - m3.medium
+    - m3.large
+    - m3.xlarge
+    - m3.2xlarge
+    - m4.large
+    - m4.xlarge
+    - m4.2xlarge
+    - m4.4xlarge
+    - m4.10xlarge
+    - m5.large
+    - m5.xlarge
+    - m5.2xlarge
+    - m5.4xlarge
+    - m5.12xlarge
+    - m5.24xlarge
+    - c4.large
+    - c4.xlarge
+    - c4.2xlarge
+    - c4.4xlarge
+    - c4.8xlarge
+    - c5.large
+    - c5.xlarge
+    - c5.2xlarge
+    - c5.4xlarge
+    - c5.9xlarge
+    - c5.18xlarge
+    - i3.large
+    - i3.xlarge
+    - i3.2xlarge
+    - i3.4xlarge
+    - i3.8xlarge
+    - i3.16xlarge
+    - r3.xlarge
+    - r3.2xlarge
+    - r3.4xlarge
+    - r3.8xlarge
+    - r4.large
+    - r4.xlarge
+    - r4.2xlarge
+    - r4.4xlarge
+    - r4.8xlarge
+    - r4.16xlarge
+    - x1.16xlarge
+    - x1.32xlarge
+    - p2.xlarge
+    - p2.8xlarge
+    - p2.16xlarge
+    - p3.2xlarge
+    - p3.8xlarge
+    - p3.16xlarge
+    - r5.large
+    - r5.xlarge
+    - r5.2xlarge
+    - r5.4xlarge
+    - r5.12xlarge
+    - r5.24xlarge
+    - r5d.large
+    - r5d.xlarge
+    - r5d.2xlarge
+    - r5d.4xlarge
+    - r5d.12xlarge
+    - r5d.24xlarge
+    - z1d.large
+    - z1d.xlarge
+    - z1d.2xlarge
+    - z1d.3xlarge
+    - z1d.6xlarge
+    - z1d.12xlarge
+    ConstraintDescription: Must be a valid EC2 instance type
+
+  NodeAutoScalingGroupMinSize:
+    Type: Number
+    Description: Minimum size of Node Group ASG.
+    Default: 1
+
+  NodeAutoScalingGroupMaxSize:
+    Type: Number
+    Description: Maximum size of Node Group ASG.
+    Default: 3
+
+  NodeVolumeSize:
+    Type: Number
+    Description: Node volume size
+    Default: 20
+
+  BootstrapArguments:
+    Description: Arguments to pass to the bootstrap script. See files/bootstrap.sh in https://github.com/awslabs/amazon-eks-ami
+    Default: ""
+    Type: String
+
+  DsmDns:
+    Description: DSM dns to be used on the DSA deployment on the nodes.
+    Type: String
+  
+  BaseS3:
+    Description: Base S3 URL for stack locations
+    Type: String
+
+Resources:
+
+    EKSCluster:
+      Type: AWS::CloudFormation::Stack
+      Properties:
+        Parameters:
+          VPC: !Ref VPC
+          PublicSubnet1: !Ref PublicSubnet1
+          PublicSubnet2: !Ref PublicSubnet2
+          EventName:  !Ref EventName
+          TeamName: !Ref TeamName
+        Tags:
+          - Key: Name
+            Value: eks-cluster-stack
+        TemplateURL:
+          Fn::Sub: ${BaseS3}templates/eks.yml
+        TimeoutInMinutes: 30
+
+
+    EKSNodes:
+      Type: AWS::CloudFormation::Stack
+      Properties:
+        Parameters:
+          NodeInstanceType: !Ref NodeInstanceType
+          KeyName: !Ref KeyName
+          VPC: !Ref VPC
+          ClusterName: !GetAtt EKSCluster.Outputs.ClusterName
+          DsmDns: !Ref DsmDns
+          NodeGroupName:
+            !Join
+            - "-"
+            - - !GetAtt EKSCluster.Outputs.ClusterName
+              - NodeGroup
+          Subnets:
+            !Join
+            - ","
+            - - !Ref PublicSubnet1
+              - !Ref PublicSubnet2
+          ClusterControlPlaneSecurityGroup: !GetAtt EKSCluster.Outputs.ClusterControlPlaneSecurityGroup
+          EventName:  !Ref EventName
+          TeamName: !Ref TeamName
+          BaseS3: !Ref BaseS3
+        Tags:
+          - Key: Name
+            Value: eks-nodes-stack
+        TemplateURL:
+          Fn::Sub: ${BaseS3}templates/nodes.yml
+        TimeoutInMinutes: 10
+
+
+Outputs:
+
+      ClusterName:
+        Description: EKS cluster name
+        Value: !GetAtt EKSCluster.Outputs.ClusterName
+
+      ClusterEndpoint:
+        Description: EKS cluster endpoint
+        Value: !GetAtt EKSCluster.Outputs.ClusterEndpoint
+
+      NodeInstanceRole:
+        Description: The node instance role
+        Value: !GetAtt EKSNodes.Outputs.NodeInstanceRole

@@ -1,0 +1,12 @@
+pipeline {
+ agent any
+ stages {
+    stage('Get external IP') {
+      steps{
+	sh '''#!/bin/bash
+                kubectl --kubeconfig=kubeconfig describe services secjam | grep Ingress | cut -d ':' -f 2 | tr -d ' '
+        '''
+      }
+    }
+ }
+}

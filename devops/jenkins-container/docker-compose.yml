@@ -1,0 +1,35 @@
+version: '3.1'
+
+services:
+
+  jenkins:
+    build: .
+    ports:
+      - 8080:8080
+      - 50000:50000
+    secrets:
+      - jenkins-user
+      - jenkins-pass
+    environment:
+      - VIRTUAL_HOST=${DNS}
+      - VIRTUAL_PORT=8080
+      - ECR_ADDRESS=${ECR_ADDRESS}
+      - SMART_CHECK_PASSWORD=${SMART_CHECK_PASSWORD}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /jenkins-container/jenkins_volume:/var/jenkins_home
+
+  proxy:
+    image: jwilder/nginx-proxy
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - /certs:/etc/nginx/certs
+
+secrets:
+  jenkins-user:
+    file: ./secrets/username
+  jenkins-pass:
+    file: ./secrets/password

@@ -1,0 +1,13 @@
+FROM nginx:alpine
+
+
+RUN mkdir /www
+COPY cgi_program /www/
+COPY nginx.conf /www/
+COPY service.sh /www/
+COPY logo.jpg /www/images/
+RUN chmod a+x /www/service.sh
+RUN chmod a+x /www/cgi_program
+RUN apk update && apk add fcgi-dev fcgi spawn-fcgi 
+
+CMD ["/www/service.sh"]

@@ -1,0 +1,26 @@
+pipeline {
+ agent any
+ stages {
+    stage('Update Deep Security Policy for EKS nodes') {
+      steps{
+	sh '''#!/bin/bash
+        chmod a+x UpdateDeepSecurity.sh
+        ./UpdateDeepSecurity.sh
+        echo "Waiting for nodes to update"
+        sleep 60
+        '''
+      }
+    }
+    stage('Redo Deployment') {
+      steps{
+	sh '''#!/bin/bash
+        kubectl --kubeconfig=kubeconfig delete deployment secjam
+        sleep 30
+        kubectl --kubeconfig=kubeconfig  create -f pod.yml
+        sleep 30 
+        kubectl --kubeconfig=kubeconfig get services secjam
+        '''
+      }
+    }
+ }
+}

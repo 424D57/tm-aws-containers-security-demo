@@ -1,0 +1,178 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Cloudformation to support non-networking infrastructure.
+Parameters:
+
+  QSS3BucketName:
+    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
+    ConstraintDescription: Quick Start bucket name can include numbers, lowercase
+      letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen
+      (-).
+    Default: trend-micro-quick-start
+    Description: S3 bucket name for the Quick Start assets. Quick Start bucket name
+      can include numbers, lowercase letters, uppercase letters, and hyphens (-).
+      It cannot start or end with a hyphen (-).
+    Type: String
+
+  TeamName:
+    Description: The Team's name. It is going to be used as subdomain to the hosted zone name.
+    Type: String
+
+  EventName:
+    Description: DNS compliant event name. Will be used in dns names
+    Type: String
+    AllowedPattern: '[a-z0-9]*'
+
+Resources:
+
+  EcrRepository:
+    Type: 'AWS::ECR::Repository'
+    DeletionPolicy: Delete
+    Properties:
+      RepositoryName: !Sub "${EventName}-${TeamName}"
+
+  Git:
+    Type: 'AWS::CodeCommit::Repository'
+    Properties:
+      RepositoryDescription: Git repo
+      RepositoryName:
+        Fn::Join: [
+          "-",
+          [
+            "SecJam",
+            { Ref: "AWS::StackName" }
+          ]
+        ]
+
+  ReadS3BucketProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Path: "/"
+      Roles:
+        - !Ref IamRole
+
+  ReadS3BucketPolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName:
+        Fn::Join: [
+          "-",
+          [
+            'ReadS3Policy',
+            { Ref: "AWS::StackName" }
+          ]
+        ]
+      PolicyDocument:
+          Statement:
+            - Effect: Allow
+              Action: 's3:GetObject'
+              Resource: 
+                Fn::Join: [
+                  "",
+                  [
+                    'arn:aws:s3:::',
+                    { Ref: "QSS3BucketName" },
+                    '/*'
+                  ]
+                ]
+            - Effect: Allow
+              Action: 's3:ListBucket'
+              Resource: 
+                Fn::Join: [
+                  "",
+                  [
+                    'arn:aws:s3:::',
+                    { Ref: "QSS3BucketName" }
+                  ]
+                ]              
+      Roles:
+        - !Ref IamRole
+
+  IamRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+        - arn:aws:iam::aws:policy/AmazonEKSServicePolicy
+        - arn:aws:iam::aws:policy/AdministratorAccess
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser
+      Path: "/"
+
+  GitPolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName:
+        Fn::Join: [
+          "-",
+          [
+            'GitPolicy',
+            { Ref: "AWS::StackName" }
+          ]
+        ]
+      PolicyDocument:
+          Statement:
+            - Effect: Allow
+              Action: 'codecommit:*'
+              Resource: !GetAtt Git.Arn
+      Roles:
+        - !Ref IamRole
+
+  EcrPolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName:
+        !Join
+          - "-"
+          - - EcrPolicy
+            - !Ref AWS::StackName
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Action:
+              - "ecr:GetDownloadUrlForLayer"
+              - "ecr:BatchGetImage"
+              - "ecr:BatchCheckLayerAvailability"
+              - "ecr:PutImage"
+              - "ecr:InitiateLayerUpload"
+              - "ecr:UploadLayerPart"
+              - "ecr:CompleteLayerUpload"
+            Resource: !GetAtt EcrRepository.Arn
+      Roles:
+        - !Ref IamRole
+
+
+Outputs:
+
+  GitUrl:
+    Description: The URL to use for cloning the repository over SSH, such as ssh://git-codecommit.us-east-1.amazonaws.com/v1/repos/MyDemoRepo.
+    Value: !GetAtt Git.CloneUrlSsh
+
+  GitHTTPSUrl:
+    Description: The URL to use for cloning the repository over https, such as https://git-codecommit.us-east-1.amazonaws.com/v1/repos/MyDemoRepo.
+    Value: !GetAtt Git.CloneUrlHttp
+
+  ReadS3BucketProfile:
+    Description: Tha instance Profile that allows access to the original bucket in order to download the scripts.
+    Value: !Ref ReadS3BucketProfile
+
+  EcrRepositoryArn:
+    Description: The repository ARN to be used latter with Smart Check.
+    Value: !GetAtt EcrRepository.Arn
+
+  EcrRepositoryAddress:
+    Description: The repository address to be later used on the docker push commands
+    Value: !Join [ ".", [ !Ref "AWS::AccountId", "dkr.ecr", !Ref "AWS::Region", !Join [ "/", [ "amazonaws.com", !Ref "EcrRepository" ] ] ] ]
+
+  IamRole:
+    Description: The role that has all the needed access.
+    Value: !Ref IamRole

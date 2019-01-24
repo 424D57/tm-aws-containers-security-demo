@@ -1,0 +1,2 @@
+jenkinsUrl,jenkinsUsername,jenkinsPassword,bastionFqdn,bastionUsername,bastionPassword
+jenkins.team1.secjam.trend-devops.com,admin,password,bastion.team1.secjam.trend-devops.com,ec2-user,password

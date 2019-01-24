@@ -1,0 +1,375 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Bastion formation.
+
+Parameters:
+
+  EventName:
+    Description: DNS compliant event name. Will be used in dns names
+    Type: String
+    AllowedPattern: '[a-z0-9]*'
+
+  KeyName:
+    Description: Existing EC2 KeyPair for SSH access.
+    Type: 'AWS::EC2::KeyPair::KeyName'
+    MinLength: '1'
+    MaxLength: '255'
+    ConstraintDescription: Select an existing EC2 Key Pair.
+
+  BastionInstanceType:
+    Description: EC2 instance type for the bastion host (used for public SSH access).
+    Type: String
+    Default: t3.medium
+    AllowedValues:
+      - m5.large
+      - m5.xlarge
+      - m5.2xlarge
+      - m5.4xlarge
+      - m5.12xlarge
+      - m5.24xlarge
+      - m5d.large
+      - m5d.xlarge
+      - m5d.2xlarge
+      - m5d.4xlarge
+      - m5d.12xlarge
+      - m5d.24xlarge
+      - m4.large
+      - m4.xlarge
+      - m4.2xlarge
+      - m4.4xlarge
+      - m4.10xlarge
+      - m4.16xlarge
+      - c5.large
+      - c5.xlarge
+      - c5.2xlarge
+      - c5.4xlarge
+      - c5.9xlarge
+      - c5.18xlarge
+      - t3.nano
+      - t3.micro
+      - t3.small
+      - t3.medium
+      - t3.large
+      - t3.xlarge
+      - t3.2xlarge
+      - r5.xlarge
+      - r5.2xlarge
+      - r5.4xlarge
+      - r5.12xlarge
+      - r5.24xlarge
+      - r5d.xlarge
+      - r5d.2xlarge
+      - r5d.4xlarge
+      - r5d.12xlarge
+      - r5d.24xlarge
+      - r4.large
+      - r4.xlarge
+      - r4.2xlarge
+      - r4.4xlarge
+      - r4.8xlarge
+      - r4.16xlarge
+      - x1.16xlarge
+      - x1.32xlarge
+      - i3.large
+      - i3.xlarge
+      - i3.2xlarge
+      - i3.4xlarge
+      - i3.8xlarge
+      - i3.16xlarge
+      - c4.large
+      - c4.xlarge
+      - c4.2xlarge
+      - c4.4xlarge
+      - c4.8xlarge
+      - r3.large
+      - r3.xlarge
+      - r3.2xlarge
+      - r3.4xlarge
+      - r3.8xlarge
+    ConstraintDescription: must be a valid Current Generation EC2 instance type.
+
+  PublicSubnet1:
+    Description: 'PublicSubnet1'
+    Type: 'AWS::EC2::Subnet::Id'
+
+  PublicSubnet2:
+    Description: 'PublicSubnet2'
+    Type: 'AWS::EC2::Subnet::Id'
+
+  AdminIngressLocation:
+    Description: 'AdminIngressLocation'
+    Type: String
+
+  VPC:
+    Description: Parent stack VPC
+    Type: 'AWS::EC2::VPC::Id'
+
+  ReadS3BucketProfile:
+    Description: ReadS3BucketProfile
+    Type: String
+
+  IamRole:
+    Description: ReadS3BucketProfile
+    Type: String
+
+  DsmDns:
+    Description: Deep Security Manager DNS
+    Type: String
+
+  EcrRepositoryArn:
+    Description: ECR Respository ARN to be used on Smart Check
+    Type: String
+
+  EcrRepositoryAddress:
+    Description: ECR Repository address to be used on docker push commmands
+    Type: String
+
+  BastionPassword:
+    Description: The password to be used by secjam user.
+    Type: String
+
+  SmartCheckPassword:
+    Description: The password to be used by Smart Check.
+    Type: String
+
+  TeamName:
+    Description: The Team's name. It is going to be used as subdomain to the hosted zone name.
+    Type: String
+
+  SmartCheckActivationCode:
+    Description: Smart Check activation code.
+    Type: String
+    
+  DevOpsDsmUser:
+    Description: Username for the DSM admin used as answer for a challenge
+    Type: String
+
+  GitURL:
+    Description: HTTPS address of git to use in Jenkins
+    Type: String
+
+  NodeInstanceType:
+    Description: EC2 instance type for the node instances
+    Type: String
+    Default: t2.medium
+    AllowedValues:
+      - t2.small
+      - t2.medium
+      - t2.large
+      - t2.xlarge
+      - t2.2xlarge
+      - m3.medium
+      - m3.large
+      - m3.xlarge
+      - m3.2xlarge
+      - m4.large
+      - m4.xlarge
+      - m4.2xlarge
+      - m4.4xlarge
+      - m4.10xlarge
+      - m5.large
+      - m5.xlarge
+      - m5.2xlarge
+      - m5.4xlarge
+      - m5.12xlarge
+      - m5.24xlarge
+      - c4.large
+      - c4.xlarge
+      - c4.2xlarge
+      - c4.4xlarge
+      - c4.8xlarge
+      - c5.large
+      - c5.xlarge
+      - c5.2xlarge
+      - c5.4xlarge
+      - c5.9xlarge
+      - c5.18xlarge
+      - i3.large
+      - i3.xlarge
+      - i3.2xlarge
+      - i3.4xlarge
+      - i3.8xlarge
+      - i3.16xlarge
+      - r3.xlarge
+      - r3.2xlarge
+      - r3.4xlarge
+      - r3.8xlarge
+      - r4.large
+      - r4.xlarge
+      - r4.2xlarge
+      - r4.4xlarge
+      - r4.8xlarge
+      - r4.16xlarge
+      - x1.16xlarge
+      - x1.32xlarge
+      - p2.xlarge
+      - p2.8xlarge
+      - p2.16xlarge
+      - p3.2xlarge
+      - p3.8xlarge
+      - p3.16xlarge
+    ConstraintDescription: must be a valid EC2 instance type
+
+  QSS3BucketName:
+    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
+    ConstraintDescription: Quick Start bucket name can include numbers, lowercase
+      letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen
+      (-).
+    Default: trend-micro-quick-start
+    Description: S3 bucket name for the Quick Start assets. Quick Start bucket name
+      can include numbers, lowercase letters, uppercase letters, and hyphens (-).
+      It cannot start or end with a hyphen (-).
+    Type: String
+
+  QSS3KeyPrefix:
+    AllowedPattern: ^[0-9a-zA-Z-/]*$
+    ConstraintDescription: Quick Start key prefix can include numbers, lowercase letters,
+      uppercase letters, hyphens (-), and forward slash (/).",
+    Default: latest/
+    Description: S3 key prefix for the Quick Start assets. Quick Start key prefix
+      can include numbers, lowercase letters, uppercase letters, hyphens (-), and
+      forward slash (/).
+    Type: String
+
+Mappings:
+  RegionMap:
+    ap-northeast-1:
+      ubuntu18: ami-033cdfcdd17e140cc
+      amzlinuz2: ami-04b9e417d2e6d3ba9
+      rhel: ami-5c9a933b
+      ecs: ami-0edf19001c48838c7
+    ap-northeast-2:
+      ubuntu18: ami-0b04c9bf8abfa5b89
+      amzlinuz2: ami-03c9d6480eaed2094
+      rhel: aami-908f50fe
+      ecs: ami-0b52e57bed048ca48
+    ap-south-1:
+      ubuntu18: ami-0807bb2b5888ad68c
+      amzlinuz2: ami-0b173ae0d9e71699a
+      rhel: ami-29bdc246
+      ecs: ami-05f009513cd58ac90
+    ap-southeast-1:
+      ubuntu18: ami-012e97ef137a3f446
+      amzlinuz2: ami-0e0db365e243c2806
+      rhel: ami-cb981aa8
+      ecs: ami-08d4fe232c67b81b8
+    ap-southeast-2:
+      ubuntu18: ami-0b1f854598cf629f6
+      amzlinuz2: ami-0e2b2114bf2fac7d8
+      rhel: ami-9a3322f9
+      ecs: ami-08c26730c8ee004fa
+    ca-central-1:
+      ubuntu18: ami-01428c87658222f33
+      amzlinuz2: ami-0bda65ab87402e7ba
+      rhel: ami-14e65970
+      ecs: ami-055750f063052ec55
+    eu-central-1:
+      ubuntu18: ami-0dfd7cad24d571c54
+      amzlinuz2: ami-0db937172f289d97e
+      rhel: ami-0e258161
+      ecs: ami-0b9fee3a2d0596ed1
+    eu-west-1:
+      ubuntu18: ami-0aebeb281fdee5054
+      amzlinuz2: ami-01c855eb410b05de7
+      rhel: ami-0e12cbde3e77cbb98
+      ecs: ami-066826c6a40879d75
+    eu-west-2:
+      ubuntu18: ami-03f2ee00e9dc6b85f
+      amzlinuz2: ami-0135b45434a538069
+      rhel: ami-40a8bf24
+      ecs: ami-0cb31bf24b130a0f9
+    sa-east-1:
+      ubuntu18: ami-0389698ad66808197
+      amzlinuz2: ami-0358590e25437b80e
+      rhel: ami-5f2f4433
+      ecs: ami-0ada25501ac1375b3
+    us-east-1:
+      ubuntu18: ami-0977029b5b13f3d08
+      amzlinuz2: ami-020635c16bf5a82ad
+      rhel: ami-011b3ccf1bd6db744
+      ecs: ami-07eb698ce660402d2
+    us-east-2:
+      ubuntu18: ami-05f39e7b7f153bc6a
+      amzlinuz2: ami-0b02fd40659a77a44
+      rhel: ami-03291866
+      ecs: ami-0a0c6574ce16ce87a
+    us-west-1:
+      ubuntu18: ami-03d5270fcb641f79b
+      amzlinuz2: ami-0ff42bc1b2ce9d50d
+      rhel: ami-0ec1ad91f200c15a8
+      ecs: ami-04c22ba97a0c063c4
+    us-west-2:
+      ubuntu18: ami-0f47ef92b4218ec09
+      amzlinuz2: ami-0b241ae54d1d95744
+      rhel: ami-b55a51cc
+      ecs: ami-09568291a9d6c804c
+
+Resources:
+
+  BastionHost:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      ImageId: !FindInMap
+        - RegionMap
+        - !Ref 'AWS::Region'
+        - amzlinuz2
+      InstanceType: !Ref BastionInstanceType
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeleteOnTermination: true
+          DeviceIndex: 0
+          PrivateIpAddress: 10.0.128.5
+          GroupSet:
+            - !Ref BastionSecurityGroup
+          SubnetId: !Ref PublicSubnet1
+      IamInstanceProfile: !Ref ReadS3BucketProfile
+      Tags:
+        - Key: Name
+          Value: bastion-host
+      KeyName: !Ref KeyName
+      UserData:
+        Fn::Base64:
+          Fn::Join: [
+            "",
+            [
+              "#!/bin/bash -xe\n",
+              "aws s3 cp s3://", { Ref: "QSS3BucketName" },"/",{ Ref: "QSS3KeyPrefix" },"scripts/BuildBastion.sh BuildBastion.sh", "\n",
+              "chmod a+x BuildBastion.sh", "\n",
+              "export DSM_URL=", { Ref: "DsmDns" },"\n",
+              "export KEY_NAME=", { Ref: "KeyName" },"\n",
+              "export VPC_ID=", { Ref: "VPC" },"\n",
+              "export SUBNET_1=", { Ref: "PublicSubnet1" },"\n",
+              "export SUBNET_2=", { Ref: "PublicSubnet2" },"\n",
+              "export EKS_CLUSTER_NAME=", { Ref: "AWS::StackName" },"-Cluster","\n",
+              "export ECR_ARN=", { Ref: "EcrRepositoryArn" },"\n",
+              "export ECR_ADDRESS=", { Ref: "EcrRepositoryAddress" },"\n",
+              "export SMART_CHECK_PASSWORD=", { Ref: "SmartCheckPassword" },"\n",
+              "export BASTION_PASSWORD=", { Ref: "BastionPassword" },"\n",
+              "export NODE_INSTANCE_TYPE=", { Ref: "NodeInstanceType" },"\n",
+              "export SC_ACTIVATION_CODE=", { Ref: "SmartCheckActivationCode" },"\n",
+              "export GITURL=", { Ref: "GitURL" }, "\n",
+              "export IAM_ROLE=", { Ref: "IamRole" }, "\n",
+              "export BUCKET_NAME=", { Ref: "QSS3BucketName" }, "\n",
+              "export BUCKET_PREFIX=", { Ref: "QSS3KeyPrefix" }, "\n",
+              "export EVENT_NAME=", { Ref: EventName }, "\n",
+              "export TEAM_NAME=", { Ref: TeamName }, "\n",
+              "export DSM_USER=", { Ref: DevOpsDsmUser }, "\n",
+              "./BuildBastion.sh", "\n"
+            ]
+          ]
+
+  BastionSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Enable SSH access via port 22
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: !Ref AdminIngressLocation
+
+Outputs:
+
+  BastionAccess:
+    Description: Bastion Public username and DNS name to SSH access.
+    Value: !Join [ '', [ 'ec2-user@', !GetAtt BastionHost.PublicDnsName ] ]

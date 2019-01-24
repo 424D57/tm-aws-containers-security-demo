@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: secjam
+spec:
+  selector:
+    matchLabels:
+      run: secjam
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        run: secjam
+    spec:    
+      containers:
+      - name: secjam
+        image: ECR_BASE/ECR_REPO:latest
+        ports:
+        - name: http
+          containerPort: 80
+          hostPort: 80
+        volumeMounts:
+        - name: foo
+          mountPath: "/etc/foo"
+      volumes:
+      - name: foo
+        secret:
+          secretName: answer
+          items:
+          - key: answer
+            path: game/answer
+            mode: 511

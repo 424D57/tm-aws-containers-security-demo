@@ -1,0 +1,3 @@
+jenkinsUrl,jenkinsUsername,jenkinsPassword,bastionFqdn,bastionUsername,bastionPassword
+jenkins.team1.secjam.trend-devops.com,admin,8962a5a6d0e203c8a094ffbf5a527c,bastion.team1.secjam.trend-devops.com,ec2-user,2e2a7e5ac88058adfd7092aa5be46d
+jenkins.team2.secjam.trend-devops.com,admin,e265867e4afdb65f7354722dc0678a,bastion.team2.secjam.trend-devops.com,ec2-user,7b8c4fba14680633db3a6645908a85

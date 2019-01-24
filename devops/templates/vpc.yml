@@ -1,0 +1,175 @@
+Description: >
+    This template deploys a VPC, with two public subnets. It deploys
+    an Internet Gateway, with a default route on the public subnet.
+
+Parameters:
+
+    EnvironmentName:
+        Description: An environment name that will be prefixed to resource names
+        Type: String
+
+    VPCCIDR:
+      Description: VPC CIDR Block
+      Type: String
+      AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+      ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+      Default: 10.0.0.0/16
+
+    AdminIngressLocation:
+      Description: >-
+        CIDR block (IP address range) to allow SSH access to the bastion host and
+        HTTPS access to the Kubernetes API. Use 0.0.0.0/0 to allow access from all
+        locations.
+      Type: String
+      Default: 0.0.0.0/0
+      MinLength: '9'
+      MaxLength: '18'
+      AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+      ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+
+    PublicSubnet1CIDR:
+      Description: >-
+        CIDR Block for the Public Subnet, must be a valid subnet of the VPC CIDR
+        and not overlap with PrivateSubnetCIDR
+      Type: String
+      AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+      ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+      Default: 10.0.128.0/24
+
+    PublicSubnet2CIDR:
+      Description: >-
+        CIDR Block for the Public Subnet, must be a valid subnet of the VPC CIDR
+        and not overlap with PrivateSubnetCIDR
+      Type: String
+      AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+      ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+      Default: 10.0.129.0/24
+
+    AvailabilityZone1:
+      Description: >-
+        The Availability Zone for most everything.
+      Type: 'AWS::EC2::AvailabilityZone::Name'
+      ConstraintDescription: must be the name of an AWS Availability Zone
+
+    AvailabilityZone2:
+      Description: >-
+        The second Availability Zone for use with EKS.
+      Type: 'AWS::EC2::AvailabilityZone::Name'
+      ConstraintDescription: must be the name of an AWS Availability Zone
+
+Resources:
+
+    VPC:
+        Type: AWS::EC2::VPC
+        Properties:
+            CidrBlock: !Ref VPCCIDR
+            EnableDnsHostnames: true
+            EnableDnsSupport: true
+            Tags:
+                - Key: Name
+                  Value: !Sub '${AWS::StackName}-VPC'
+
+    DHCPOptions:
+        Type: AWS::EC2::DHCPOptions
+        Properties:
+            DomainName:
+                Fn::If:
+                    - NVirginiaRegionCondition
+                    - ec2.internal
+                    - Fn::Join:
+                        - ''
+                        - - Ref: AWS::Region
+                          - ".compute.internal"
+            DomainNameServers:
+                - AmazonProvidedDNS
+
+    VPCDHCPOptionsAssociation:
+        Type: AWS::EC2::VPCDHCPOptionsAssociation
+        Properties:
+            VpcId: !Ref VPC
+            DhcpOptionsId: !Ref DHCPOptions
+
+    InternetGateway:
+        Type: AWS::EC2::InternetGateway
+        Properties:
+            Tags:
+                - Key: Name
+                  Value: !Ref EnvironmentName
+
+    InternetGatewayAttachment:
+        Type: AWS::EC2::VPCGatewayAttachment
+        Properties:
+            InternetGatewayId: !Ref InternetGateway
+            VpcId: !Ref VPC
+
+    PublicSubnet1:
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId: !Ref VPC
+            AvailabilityZone: !Ref AvailabilityZone1
+            CidrBlock: !Ref PublicSubnet1CIDR
+            MapPublicIpOnLaunch: true
+            Tags:
+                - Key: Name
+                  Value: !Sub ${EnvironmentName} Public Subnet (AZ1)
+
+    PublicSubnet2:
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId: !Ref VPC
+            AvailabilityZone: !Ref AvailabilityZone2
+            CidrBlock: !Ref PublicSubnet2CIDR
+            MapPublicIpOnLaunch: true
+            Tags:
+                - Key: Name
+                  Value: !Sub ${EnvironmentName} Public Subnet (AZ2)
+
+    PublicRouteTable:
+        Type: AWS::EC2::RouteTable
+        Properties:
+            VpcId: !Ref VPC
+            Tags:
+                - Key: Name
+                  Value: !Sub ${EnvironmentName} Public Routes
+
+    DefaultPublicRoute:
+        Type: AWS::EC2::Route
+        DependsOn: InternetGatewayAttachment
+        Properties:
+            RouteTableId: !Ref PublicRouteTable
+            DestinationCidrBlock: 0.0.0.0/0
+            GatewayId: !Ref InternetGateway
+
+    PublicSubnet1RouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId: !Ref PublicRouteTable
+            SubnetId: !Ref PublicSubnet1
+
+    PublicSubnet2RouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId: !Ref PublicRouteTable
+            SubnetId: !Ref PublicSubnet2
+
+
+Conditions:
+
+      NVirginiaRegionCondition:
+          Fn::Equals:
+          - Ref: AWS::Region
+          - us-east-1
+
+Outputs:
+
+    VPC:
+        Description: A reference to the created VPC
+        Value: !Ref VPC
+
+    PublicSubnet1:
+        Description: A reference to the public subnet in the 1st Availability Zone
+        Value: !Ref PublicSubnet1
+
+    PublicSubnet2:
+        Description: A reference to the public subnet in the 2nd Availability Zone
+        Value: !Ref PublicSubnet2
